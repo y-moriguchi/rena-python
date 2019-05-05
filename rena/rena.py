@@ -10,10 +10,19 @@ import re;
 
 class Rena:
     def __init__(self, option={}):
-        self._ignoreExp = None;
+        self._ignoreExp = None
         if "ignore" in option:
             rbase = Rena()
-            self._ignoreExp = rbase.wrap(option["ignore"]);
+            self._ignoreExp = rbase.wrap(option["ignore"])
+        self._trie = None
+        if "keys" in option:
+            self._trie = {}
+            for key in option["keys"]:
+                trie = self._trie
+                for ch in key:
+                    if not ch in trie:
+                        trie[ch] = {}
+                    trie = trie[ch]
 
     def _ignore(self, match, lastIndex):
         if self._ignoreExp is None:
@@ -24,6 +33,20 @@ class Rena:
                 return lastIndex
             else:
                 return indexNew
+
+    def _findKey(self, match, lastIndex):
+        if self._trie is None:
+            return ""
+        trie = self._trie
+        i = lastIndex
+        while i < len(match):
+            ch = match[i]
+            if ch in trie:
+                trie = trie[ch]
+                i += 1
+            else:
+                break
+        return match[lastIndex:i]
 
     def wrap(self, obj):
         if type(obj) is str:
@@ -92,6 +115,21 @@ class Rena:
             return (match[lastIndex:indexNew], indexNew, attrNew)
         return process
 
+    def atLeast(self, mincount, exp, action=lambda match, syn, inh: syn):
+        return self.times(mincount, None, exp, action)
+
+    def atMost(self, maxcount, exp, action=lambda match, syn, inh: syn):
+        return self.times(0, maxcount, exp, action)
+
+    def oneOrMore(self, exp, action=lambda match, syn, inh: syn):
+        return self.times(1, None, exp, action)
+
+    def zeroOrMore(self, exp, action=lambda match, syn, inh: syn):
+        return self.times(0, None, exp, action)
+
+    def maybe(self, exp):
+        return self.times(0, 1, exp)
+
     def delimit(self, exp, delimiter, action=lambda match, syn, inh: syn):
         wrapped = self.wrap(exp)
         wrappedDelimiter = self.wrap(delimiter)
@@ -131,6 +169,17 @@ class Rena:
     def lookaheadNot(self, exp):
         return self.lookahead(exp, False)
 
+    def attr(self, attr):
+        return lambda match, lastIndex, attrOld: (match, lastIndex, attr)
+
+    def cond(self, predicate):
+        def process(match, lastIndex, attr):
+            if predicate(attr):
+                return ("", lastIndex, attr)
+            else:
+                return (None, None, None)
+        return process
+
     def action(self, exp, action):
         wrapped = self.wrap(exp)
         def process(match, lastIndex, attr):
@@ -140,4 +189,73 @@ class Rena:
             else:
                 return (matched, indexNew, action(matched, attrNew, attr))
         return process
+
+    def key(self, key):
+        def process(match, lastIndex, attr):
+            matchedKey = self._findKey(match, lastIndex)
+            if matchedKey == key:
+                return (key, lastIndex + len(key), attr)
+            else:
+                return (None, None, None)
+        return process
+
+    def notKey(self):
+        def process(match, lastIndex, attr):
+            matchedKey = self._findKey(match, lastIndex)
+            if matchedKey == "":
+                return ("", lastIndex, attr)
+            else:
+                return (None, None, None)
+        return process
+
+    def equalsId(self, keyword):
+        wrapped = self.wrap(keyword)
+        def process(match, lastIndex, attr):
+            matched, indexNew, attrNew = wrapped(match, lastIndex, attr)
+            if matched is None:
+                return (None, None, None)
+            elif indexNew == len(match):
+                return (matched, indexNew, attrNew)
+            elif self._ignoreExp is None and self._trie is None:
+                return (matched, indexNew, attrNew)
+            elif self._ignoreExp is not None and self._ignore(match, indexNew) != indexNew:
+                return (matched, self._ignore(match, indexNew), attrNew)
+            elif self._trie is not None and self._findKey(match, indexNew) != "":
+                return (matched, indexNew, attrNew)
+            else:
+                return (None, None, None)
+        return process
+
+    def real(self):
+        realPattern = re.compile(r'[\+\-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][\+\-]?[0-9]+)?')
+        def process(match, lastIndex, attr):
+            matched = realPattern.match(match, lastIndex)
+            if matched:
+                return (matched.group(0), lastIndex + len(matched.group(0)), float(matched.group(0)))
+            else:
+                return (None, None, None)
+        return process
+
+    def br(self):
+        return self.re(r'\r\n|\r|\n')
+
+    def end(self):
+        def process(match, lastIndex, attr):
+            if lastIndex == len(match):
+                return ("", lastIndex, attr)
+            else:
+                return (None, None, None)
+        return process
+
+    def letrec(self, *args):
+        funcg = lambda g: g(g)
+        def funcp(p):
+            res = []
+            for arg in args:
+                def inner(match, lastIndex, attr):
+                    return (self.wrap(arg(*p(p))))(match, lastIndex, attr)
+                res.append(inner)
+            return res
+        res = funcg(funcp)
+        return res[0]
 
