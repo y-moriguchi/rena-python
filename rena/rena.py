@@ -16,13 +16,14 @@ class Rena:
             self._ignoreExp = rbase.wrap(option["ignore"])
         self._trie = None
         if "keys" in option:
-            self._trie = {}
+            self._trie = { "trie": {}, "terminate": False }
             for key in option["keys"]:
                 trie = self._trie
                 for ch in key:
-                    if not ch in trie:
-                        trie[ch] = {}
-                    trie = trie[ch]
+                    if not ch in trie["trie"]:
+                        trie["trie"][ch] = { "trie": {}, "terminate": False }
+                    trie = trie["trie"][ch]
+                trie["terminate"] = True
 
     def _ignore(self, match, lastIndex):
         if self._ignoreExp is None:
@@ -41,12 +42,12 @@ class Rena:
         i = lastIndex
         while i < len(match):
             ch = match[i]
-            if ch in trie:
-                trie = trie[ch]
+            if ch in trie["trie"]:
+                trie = trie["trie"][ch]
                 i += 1
             else:
                 break
-        return match[lastIndex:i]
+        return match[lastIndex:i] if trie["terminate"] else ""
 
     def wrap(self, obj):
         if type(obj) is str:
@@ -112,6 +113,7 @@ class Rena:
                 else:
                     indexNew = self._ignore(match, indexLoop)
                     attrNew = action(matchedLoop, attrLoop, attrNew)
+                    count = count + 1
             return (match[lastIndex:indexNew], indexNew, attrNew)
         return process
 
