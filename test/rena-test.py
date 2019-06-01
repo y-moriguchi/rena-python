@@ -49,6 +49,12 @@ class TestRena(unittest.TestCase):
         self.nomatch(r.then("765", "pro"), "765ab")
         self.nomatch(r.then("765", "pro"), "")
 
+    def test_then_ignore(self):
+        r = rena.Rena({ "ignore": " " })
+        self.match(r.then("765", "pro"), "765pro", 6)
+        self.match(r.then("765", "pro"), "765 pro", 7)
+        self.match(r.then("765", "pro"), "765 pro ", 8)
+
     def test_choice(self):
         r = rena.Rena()
         self.match(r.choice("765", "346"), "765", 3)
@@ -65,6 +71,20 @@ class TestRena(unittest.TestCase):
         self.match(r.times(2, None, "a"), "aa", 2)
         self.match(r.times(2, None, "a"), "aaaaa", 5)
         self.nomatch(r.times(2, None, "a"), "a")
+
+    def test_times_ignore(self):
+        r = rena.Rena({ "ignore": " " })
+        self.match(r.times(2, 4, "a"), "aaa", 3)
+        self.match(r.times(2, 4, "a"), "a aa", 4)
+        self.match(r.times(2, 4, "a"), "aa a", 4)
+        self.match(r.times(2, 4, "a"), "a a a ", 6)
+
+    def test_times_attr(self):
+        r = rena.Rena()
+        self.matchAttrInitAttr(r.times(2, 4, r.re("[a-z]"), lambda m, s, i: m + i), "abc", "", 3, "cba")
+        self.matchAttrInitAttr(
+                r.times(2, 4, r.action(r.re("[1-9]"), lambda m, s, i: int(m)),
+                    lambda m, s, i: i + s), "123", 0, 3, 6)
 
     def test_atLeast(self):
         r = rena.Rena()
@@ -104,6 +124,24 @@ class TestRena(unittest.TestCase):
         self.match(r.delimit(r.re("[a-z]"), ","), "a,b,", 3)
         self.nomatch(r.delimit(r.re("[a-z]"), ","), "")
         self.nomatch(r.delimit(r.re("[a-z]"), ","), ",")
+
+    def test_delimit_ignore(self):
+        r = rena.Rena({ "ignore": " " })
+        self.match(r.delimit(r.re("[a-z]"), ","), "a,a", 3)
+        self.match(r.delimit(r.re("[a-z]"), ","), "a ,a", 4)
+        self.match(r.delimit(r.re("[a-z]"), ","), "a, a", 4)
+        self.match(r.delimit(r.re("[a-z]"), ","), "a,a ", 4)
+        self.match(r.delimit(r.re("[a-z]"), ","), "a,a ,", 4)
+        self.match(r.delimit(r.re("[a-z]"), ","), "a , a ,", 6)
+
+    def test_delimit_attr(self):
+        r = rena.Rena()
+        self.matchAttrInitAttr(r.delimit(r.real(), "+", lambda m, s, i: i + s), "765", 0, 3, 765)
+        self.matchAttrInitAttr(r.delimit(r.real(), "+", lambda m, s, i: i + s), "765+346", 0, 7, 1111)
+        self.matchAttrInitAttr(r.delimit(r.real(), "+", lambda m, s, i: i + s), "765+1+2", 0, 7, 768)
+        self.matchAttrInitAttr(r.delimit(r.real(), "+", lambda m, s, i: i + m), "765", "", 3, "765")
+        self.matchAttrInitAttr(r.delimit(r.real(), "+", lambda m, s, i: i + m), "765+346", "", 7, "765346")
+        self.matchAttrInitAttr(r.delimit(r.real(), "+", lambda m, s, i: i + m), "765+1+2", "", 7, "76512")
 
     def test_lookahead(self):
         r = rena.Rena()

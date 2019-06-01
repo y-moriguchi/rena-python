@@ -145,15 +145,17 @@ class Rena:
                 matchedLoop, indexLoop, attrLoop = wrapped(match, indexLoop, attrLoop)
                 if matchedLoop is None:
                     if already:
+                        indexNew = self._ignore(match, indexNew)
                         return (match[lastIndex:indexNew], indexNew, attrNew)
                     else:
                         return (None, None, None)
                 else:
                     already = True
-                    matched, indexNew, attrNew = matchedLoop, indexLoop, attrLoop
+                    matched, indexNew, attrNew = matchedLoop, indexLoop, action(matchedLoop, attrLoop, attrNew)
                     indexLoop = self._ignore(match, indexLoop)
                     matchedLoop, indexLoop, attrLoop = wrappedDelimiter(match, indexLoop, attrLoop)
                     if matchedLoop is None:
+                        indexNew = self._ignore(match, indexNew)
                         return (match[lastIndex:indexNew], indexNew, attrNew)
                     indexLoop = self._ignore(match, indexLoop)
         return process
