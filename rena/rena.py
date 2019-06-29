@@ -256,9 +256,11 @@ class Rena:
         def funcp(p):
             res = []
             for arg in args:
-                def inner(match, lastIndex, attr):
-                    return (self.wrap(arg(*p(p))))(match, lastIndex, attr)
-                res.append(inner)
+                def tmpfunc(arg):
+                    def inner(match, lastIndex, attr):
+                        return (self.wrap(arg(*p(p))))(match, lastIndex, attr)
+                    return inner
+                res.append(tmpfunc(arg))
             return res
         res = funcg(funcp)
         return res[0]
